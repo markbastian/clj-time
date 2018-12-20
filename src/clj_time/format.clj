@@ -29,121 +29,80 @@
   (:require [clj-time.core :refer :all]
             [clojure.set :refer [difference]])
   (:import [java.util Locale]
-           [org.joda.time Chronology DateTime DateTimeZone Interval
-                          LocalDateTime Period PeriodType LocalDate LocalTime]
-           [org.joda.time.format DateTimeFormat DateTimeFormatter
-                                 DateTimePrinter DateTimeFormatterBuilder
-                                 DateTimeParser ISODateTimeFormat]))
+           [java.time.format DateTimeFormatter]
+           [java.time.chrono Chronology]
+           (java.time LocalTime LocalDate ZonedDateTime LocalDateTime Period)))
 
 (declare formatters)
 ;; The formatters map and show-formatters idea are strait from chrono.
 
-(defn ^org.joda.time.format.DateTimeFormatter formatter
+(defn ^DateTimeFormatter formatter
   "Returns a custom formatter for the given date-time pattern or keyword."
   ([fmts]
-     (formatter fmts utc))
-  ([fmts ^DateTimeZone dtz]
+   (formatter fmts utc))
+  ([fmts dtz]
    (cond (keyword? fmts) (.withZone ^DateTimeFormatter (get formatters fmts) dtz)
-         (string?  fmts) (.withZone (DateTimeFormat/forPattern fmts) dtz)
-         :else           (.withZone ^DateTimeFormatter fmts dtz)))
-  ([^DateTimeZone dtz fmts & more]
-    (let [printer (.getPrinter ^DateTimeFormatter (formatter fmts dtz))
-          parsers (map #(.getParser ^DateTimeFormatter (formatter % dtz)) (cons fmts more))]
-      (-> (DateTimeFormatterBuilder.)
-        ^DateTimeFormatterBuilder (.append ^DateTimePrinter printer
-                                            ^"[Lorg.joda.time.format.DateTimeParser;"
-                                            (into-array DateTimeParser parsers))
-        (.toFormatter)
-        (.withZone dtz)))))
+         (string? fmts) (.withZone (DateTimeFormatter/ofPattern fmts) dtz)
+         :else (.withZone ^DateTimeFormatter fmts dtz))))
 
-(defn ^org.joda.time.format.DateTimeFormat formatter-local
+(defn formatter-local
   "Returns a custom formatter with no time zone info."
   ([^String fmt]
-     (DateTimeFormat/forPattern fmt)))
+   (DateTimeFormatter/ofPattern fmt)))
 
-(defn ^org.joda.time.format.DateTimeFormatter with-chronology
+(defn with-chronology
   "Return a copy of a formatter that uses the given Chronology."
   [^DateTimeFormatter f ^Chronology c]
   (.withChronology f c))
 
-(defn ^org.joda.time.format.DateTimeFormatter with-locale
+(defn with-locale
   "Return a copy of a formatter that uses the given Locale."
   [^DateTimeFormatter f ^Locale l]
   (.withLocale f l))
 
-(defn ^org.joda.time.format.DateTimeFormatter with-pivot-year
-  "Return a copy of a formatter that uses the given pivot year."
-  [^DateTimeFormatter f ^Long pivot-year]
-  (.withPivotYear f pivot-year))
+;Java time DateTimeFormatter doesn't have a pivot or default year :(
+;Consider using appendValueReduced to work around (if it does work).
+;https://stackoverflow.com/questions/29490893/parsing-string-to-local-date-doesnt-use-desired-century
+;https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatterBuilder.html#appendValueReduced-java.time.temporal.TemporalField-int-int-int-
 
-(defn ^org.joda.time.format.DateTimeFormatter with-zone
+;(defn with-pivot-year
+;  "Return a copy of a formatter that uses the given pivot year."
+;  [^DateTimeFormatter f ^Long pivot-year]
+;  (.withPivotYear f pivot-year))
+
+(defn with-zone
   "Return a copy of a formatter that uses the given DateTimeZone."
-  [^DateTimeFormatter f ^DateTimeZone dtz]
+  [^DateTimeFormatter f dtz]
   (.withZone f dtz))
 
-(defn ^org.joda.time.format.DateTimeFormatter with-default-year
-  "Return a copy of a formatter that uses the given default year."
-  [^DateTimeFormatter f ^Integer default-year]
-  (.withDefaultYear f default-year))
+;(defn with-default-year
+;  "Return a copy of a formatter that uses the given default year."
+;  [^DateTimeFormatter f ^Integer default-year]
+;  (.withDefaultYear f default-year))
+
 
 (def ^{:doc "Map of ISO 8601 and a single RFC 822 formatters that can be used for parsing and, in most
              cases, printing."}
-  formatters
+formatters
   (into {} (map
-    (fn [[k ^DateTimeFormatter f]] [k (.withZone f ^DateTimeZone utc)])
-    {:basic-date (ISODateTimeFormat/basicDate)
-     :basic-date-time (ISODateTimeFormat/basicDateTime)
-     :basic-date-time-no-ms (ISODateTimeFormat/basicDateTimeNoMillis)
-     :basic-ordinal-date (ISODateTimeFormat/basicOrdinalDate)
-     :basic-ordinal-date-time (ISODateTimeFormat/basicOrdinalDateTime)
-     :basic-ordinal-date-time-no-ms (ISODateTimeFormat/basicOrdinalDateTimeNoMillis)
-     :basic-time (ISODateTimeFormat/basicTime)
-     :basic-time-no-ms (ISODateTimeFormat/basicTimeNoMillis)
-     :basic-t-time (ISODateTimeFormat/basicTTime)
-     :basic-t-time-no-ms (ISODateTimeFormat/basicTTimeNoMillis)
-     :basic-week-date (ISODateTimeFormat/basicWeekDate)
-     :basic-week-date-time (ISODateTimeFormat/basicWeekDateTime)
-     :basic-week-date-time-no-ms (ISODateTimeFormat/basicWeekDateTimeNoMillis)
-     :date (ISODateTimeFormat/date)
-     :date-element-parser (ISODateTimeFormat/dateElementParser)
-     :date-hour (ISODateTimeFormat/dateHour)
-     :date-hour-minute (ISODateTimeFormat/dateHourMinute)
-     :date-hour-minute-second (ISODateTimeFormat/dateHourMinuteSecond)
-     :date-hour-minute-second-fraction (ISODateTimeFormat/dateHourMinuteSecondFraction)
-     :date-hour-minute-second-ms (ISODateTimeFormat/dateHourMinuteSecondMillis)
-     :date-opt-time (ISODateTimeFormat/dateOptionalTimeParser)
-     :date-parser (ISODateTimeFormat/dateParser)
-     :date-time (ISODateTimeFormat/dateTime)
-     :date-time-no-ms (ISODateTimeFormat/dateTimeNoMillis)
-     :date-time-parser (ISODateTimeFormat/dateTimeParser)
-     :hour (ISODateTimeFormat/hour)
-     :hour-minute (ISODateTimeFormat/hourMinute)
-     :hour-minute-second (ISODateTimeFormat/hourMinuteSecond)
-     :hour-minute-second-fraction (ISODateTimeFormat/hourMinuteSecondFraction)
-     :hour-minute-second-ms (ISODateTimeFormat/hourMinuteSecondMillis)
-     :local-date-opt-time (ISODateTimeFormat/localDateOptionalTimeParser)
-     :local-date (ISODateTimeFormat/localDateParser)
-     :local-time (ISODateTimeFormat/localTimeParser)
-     :ordinal-date (ISODateTimeFormat/ordinalDate)
-     :ordinal-date-time (ISODateTimeFormat/ordinalDateTime)
-     :ordinal-date-time-no-ms (ISODateTimeFormat/ordinalDateTimeNoMillis)
-     :time (ISODateTimeFormat/time)
-     :time-element-parser (ISODateTimeFormat/timeElementParser)
-     :time-no-ms (ISODateTimeFormat/timeNoMillis)
-     :time-parser (ISODateTimeFormat/timeParser)
-     :t-time (ISODateTimeFormat/tTime)
-     :t-time-no-ms (ISODateTimeFormat/tTimeNoMillis)
-     :week-date (ISODateTimeFormat/weekDate)
-     :week-date-time (ISODateTimeFormat/weekDateTime)
-     :week-date-time-no-ms (ISODateTimeFormat/weekDateTimeNoMillis)
-     :weekyear (ISODateTimeFormat/weekyear)
-     :weekyear-week (ISODateTimeFormat/weekyearWeek)
-     :weekyear-week-day (ISODateTimeFormat/weekyearWeekDay)
-     :year (ISODateTimeFormat/year)
-     :year-month (ISODateTimeFormat/yearMonth)
-     :year-month-day (ISODateTimeFormat/yearMonthDay)
-     :rfc822 (with-locale (formatter "EEE, dd MMM yyyy HH:mm:ss Z") java.util.Locale/US)
-     :mysql (formatter "yyyy-MM-dd HH:mm:ss")})))
+             (fn [[k ^DateTimeFormatter f]] [k (.withZone f utc)])
+             {:basic-date       DateTimeFormatter/BASIC_ISO_DATE
+              :date             DateTimeFormatter/ISO_DATE
+              :basic-date-time  DateTimeFormatter/ISO_DATE_TIME
+              :instant          DateTimeFormatter/ISO_INSTANT
+              :local-date       DateTimeFormatter/ISO_LOCAL_DATE
+              :loca-date-time   DateTimeFormatter/ISO_LOCAL_DATE_TIME
+              :local-time       DateTimeFormatter/ISO_LOCAL_TIME
+              :offset-date      DateTimeFormatter/ISO_OFFSET_DATE
+              :offset-date-time DateTimeFormatter/ISO_OFFSET_DATE_TIME
+              :offset-time      DateTimeFormatter/ISO_OFFSET_TIME
+              :ordinal-date     DateTimeFormatter/ISO_ORDINAL_DATE
+              :time             DateTimeFormatter/ISO_TIME
+              :week-date        DateTimeFormatter/ISO_WEEK_DATE
+              :zoned-date-time  DateTimeFormatter/ISO_ZONED_DATE_TIME
+              :rfc1123          DateTimeFormatter/RFC_1123_DATE_TIME
+              :rfc822           (with-locale (formatter "EEE, dd MMM yyyy HH:mm:ss Z") Locale/US)
+              :mysql            (formatter "yyyy-MM-dd HH:mm:ss")})))
 
 (def ^{:private true} parsers
   #{:date-element-parser :date-opt-time :date-parser :date-time-parser
@@ -153,83 +112,83 @@
 (def ^{:private true} printers
   (difference (set (keys formatters)) parsers))
 
-(defn ^org.joda.time.DateTime parse
+(defn ^ZonedDateTime parse
   "Returns a DateTime instance in the UTC time zone obtained by parsing the
    given string according to the given formatter."
   ([^DateTimeFormatter fmt ^String s]
-     (.parseDateTime fmt s))
+   (.parse fmt s))
   ([^String s]
-     (first
-      (for [f (vals formatters)
-            :let [d (try (parse f s) (catch Exception _ nil))]
-            :when d] d))))
+   (first
+     (for [f (vals formatters)
+           :let [d (try (parse f s) (catch Exception _ nil))]
+           :when d] d))))
 
-(defn ^org.joda.time.LocalDateTime parse-local
+(defn ^LocalDateTime parse-local
   "Returns a LocalDateTime instance obtained by parsing the
    given string according to the given formatter."
   ([^DateTimeFormatter fmt ^String s]
-     (.parseLocalDateTime fmt s))
+   (.parse fmt s))
   ([^String s]
-     (first
-      (for [f (vals formatters)
-            :let [d (try (parse-local f s) (catch Exception _ nil))]
-            :when d] d))))
+   (first
+     (for [f (vals formatters)
+           :let [d (try (parse-local f s) (catch Exception _ nil))]
+           :when d] d))))
 
-(defn ^org.joda.time.LocalDate parse-local-date
+(defn ^LocalDate parse-local-date
   "Returns a LocalDate instance obtained by parsing the
    given string according to the given formatter."
   ([^DateTimeFormatter fmt ^String s]
-     (.parseLocalDate fmt s))
+   (.parse fmt s))
   ([^String s]
-     (first
-      (for [f (vals formatters)
-            :let [d (try (parse-local-date f s) (catch Exception _ nil))]
-            :when d] d))))
+   (first
+     (for [f (vals formatters)
+           :let [d (try (parse-local-date f s) (catch Exception _ nil))]
+           :when d] d))))
 
-(defn ^org.joda.time.LocalTime parse-local-time
+(defn ^LocalTime parse-local-time
   "Returns a LocalTime instance obtained by parsing the
   given string according to the given formatter."
-  ([^DateTimeFormatter fmt ^ String s]
-   (.parseLocalTime fmt s))
-   ([^String s]
-     (first
-      (for [f (vals formatters)
-            :let [d (try (parse-local-time f s) (catch Exception _ nil))]
-            :when d] d))))
+  ([^DateTimeFormatter fmt ^String s]
+   (.parse fmt s))
+  ([^String s]
+   (first
+     (for [f (vals formatters)
+           :let [d (try (parse-local-time f s) (catch Exception _ nil))]
+           :when d] d))))
 
 (defn unparse
   "Returns a string representing the given DateTime instance in UTC and in the
   form determined by the given formatter."
-  [^DateTimeFormatter fmt ^DateTime dt]
-  (.print fmt dt))
+  [^DateTimeFormatter fmt dt]
+  (.format fmt dt))
 
 (defn unparse-local
   "Returns a string representing the given LocalDateTime instance in the
   form determined by the given formatter."
-  [^DateTimeFormatter fmt ^LocalDateTime dt]
-  (.print fmt dt))
+  [^DateTimeFormatter fmt dt]
+  (.format fmt dt))
 
 (defn unparse-local-date
   "Returns a string representing the given LocalDate instance in the form
   determined by the given formatter."
-  [^DateTimeFormatter fmt ^LocalDate ld]
-  (.print fmt ld))
+  [^DateTimeFormatter fmt ld]
+  (.format fmt ld))
 
 (defn unparse-local-time
   "Returns a string representing the given LocalTime instance in the form
   determined by the given formatter."
-  [^DateTimeFormatter fmt ^LocalTime lt]
-  (.print fmt lt))
+  [^DateTimeFormatter fmt lt]
+  (.format fmt lt))
 
 
 (defn show-formatters
   "Shows how a given DateTime, or by default the current time, would be
   formatted with each of the available printing formatters."
   ([] (show-formatters (now)))
-  ([^DateTime dt]
-    (doseq [p (sort printers)]
-      (let [fmt (formatters p)]
-        (printf "%-40s%s\n" p (unparse fmt dt))))))
+  ([dt]
+   (doseq [p (sort printers)]
+     (let [fmt (formatters p)]
+       (printf "%-40s%s\n" p (unparse fmt dt))))))
 
 (defprotocol Mappable
   (instant->map [instant] "Returns a map representation of the given instant.
@@ -245,28 +204,29 @@
    :seconds seconds})
 
 (extend-protocol Mappable
-  DateTime
+  ZonedDateTime
   (instant->map [dt]
     (to-map
-      (.getYear dt)
-      (.getMonthOfYear dt)
-      (.getDayOfMonth dt)
-      (.getHourOfDay dt)
-      (.getMinuteOfHour dt)
-      (.getSecondOfMinute dt))))
+      (year dt)
+      (month dt)
+      (day dt)
+      (hour dt)
+      (minute dt)
+      (second dt))))
 
 (extend-protocol Mappable
   Period
   (instant->map [period]
     (to-map
-      (.getYears period)
-      (.getMonths period)
-      (.getDays period)
-      (.getHours period)
-      (.getMinutes period)
-      (.getSeconds period))))
+      (year period)
+      (month period)
+      (day period)
+      (hour period)
+      (minute period)
+      (second period))))
 
-(extend-protocol Mappable
-  Interval
-  (instant->map [it]
-    (instant->map (.toPeriod it (PeriodType/yearMonthDayTime)))))
+;TODO - MSB - where is this used?
+;(extend-protocol Mappable
+;  Interval
+;  (instant->map [it]
+;    (instant->map (.toPeriod it (PeriodType/yearMonthDayTime)))))

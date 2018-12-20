@@ -13,25 +13,26 @@
   (:import [java.io Writer]
            [java.sql Timestamp]
            [java.util Date]
-           [org.joda.time DateTime DateTimeZone DateMidnight YearMonth
-                          LocalDate LocalDateTime]))
+           ;[org.joda.time DateTime DateTimeZone DateMidnight YearMonth
+           ;               LocalDate LocalDateTime]
+           (java.time ZonedDateTime Instant YearMonth LocalDate LocalDateTime)))
 
 (defprotocol ICoerce
-  (to-date-time ^org.joda.time.DateTime [obj] "Convert `obj` to a Joda DateTime instance."))
+  (to-date-time ^ZonedDateTime [obj] "Convert `obj` to a Joda DateTime instance."))
 
-(defn ^org.joda.time.DateTime from-long
+(defn ^ZonedDateTime from-long
   "Returns a DateTime instance in the UTC time zone corresponding to the given
    number of milliseconds after the Unix epoch."
   [^Long millis]
-  (DateTime. millis ^DateTimeZone utc))
+  (ZonedDateTime/ofInstant (Instant/ofEpochMilli millis) utc))
 
-(defn ^org.joda.time.DateTime from-epoch
+(defn ^ZonedDateTime from-epoch
   "Returns a DateTime instance in the UTC time zone
    from given Unix epoch."
   [^Long epoch]
   (from-long (* epoch 1000)))
 
-(defn ^org.joda.time.DateTime from-string
+(defn ^ZonedDateTime from-string
   "return DateTime instance from string using
    formatters in clj-time.format, returning first
    which parses"
@@ -42,24 +43,24 @@
   "tagged literal support if loader does not find \"data_readers.clj\""
   {'clj-time/date-time from-string})
 
-(defn ^org.joda.time.DateTime from-date
+(defn ^ZonedDateTime from-date
   "Returns a DateTime instance in the UTC time zone corresponding to the given
    Java Date object."
   [^java.util.Date date]
   (when date
     (from-long (.getTime date))))
 
-(defn ^org.joda.time.DateTime from-sql-date
+(defn ^ZonedDateTime from-sql-date
   "Returns a DateTime instance in the UTC time zone corresponding to the given
    java.sql.Date object."
   [^java.sql.Date sql-date]
   (when sql-date
     (from-long (.getTime sql-date))))
 
-(defn ^org.joda.time.DateTime from-sql-time
+(defn ^ZonedDateTime from-sql-time
   "Returns a DateTime instance in the UTC time zone corresponding to the given
    java.sql.Timestamp object."
-  [^java.sql.Timestamp sql-time]
+  [^Timestamp sql-time]
   (when sql-time
     (from-long (.getTime sql-time))))
 
@@ -67,7 +68,7 @@
   "Convert `obj` to the number of milliseconds after the Unix epoch."
   [obj]
   (when-let [dt (to-date-time obj)]
-    (.getMillis dt)))
+    (.toEpochMilli (.toInstant dt))))
 
 (defn ^Long to-epoch
   "Convert `obj` to Unix epoch."
@@ -79,19 +80,19 @@
   "Convert `obj` to a Java Date instance."
   [obj]
   (when-let [dt (to-date-time obj)]
-    (Date. (.getMillis dt))))
+    (Date. (.toEpochMilli (.toInstant dt)))))
 
 (defn ^java.sql.Date to-sql-date
   "Convert `obj` to a java.sql.Date instance."
   [obj]
   (when-let [dt (to-date-time obj)]
-    (java.sql.Date. (.getMillis dt))))
+    (java.sql.Date. (.toEpochMilli (.toInstant dt)))))
 
-(defn ^java.sql.Timestamp to-sql-time
+(defn ^Timestamp to-sql-time
   "Convert `obj` to a java.sql.Timestamp instance."
   [obj]
   (when-let [dt (to-date-time obj)]
-    (java.sql.Timestamp. (.getMillis dt))))
+    (Timestamp. (.toEpochMilli (.toInstant dt)))))
 
 (defn to-string
   "Returns a string representation of obj in UTC time-zone
@@ -107,15 +108,15 @@
     (str "#clj-time/date-time \"" (to-string dt) "\"")))
 
 ;; pr and prn support to write edn
-(defmethod print-method org.joda.time.DateTime
+(defmethod print-method ZonedDateTime
   [v ^java.io.Writer w]
   (.write w (to-edn v)))
 
-(defn ^java.sql.Timestamp to-timestamp
+(defn ^Timestamp to-timestamp
   "Convert `obj` to a Java SQL Timestamp instance."
   [obj]
   (when-let [dt (to-date-time obj)]
-    (java.sql.Timestamp. (.getMillis dt))))
+    (Timestamp. (.toEpochMilli (.toInstant dt)))))
 
 (defn ^org.joda.time.LocalDate to-local-date
   "Convert `obj` to a org.joda.time.LocalDate instance"
@@ -150,17 +151,13 @@
   (to-date-time [sql-date]
     (from-sql-date sql-date))
 
-  java.sql.Timestamp
+  Timestamp
   (to-date-time [sql-time]
     (from-sql-time sql-time))
 
-  DateTime
+  ZonedDateTime
   (to-date-time [date-time]
     date-time)
-
-  DateMidnight
-  (to-date-time [date-midnight]
-    (.toDateTime date-midnight))
 
   YearMonth
   (to-date-time [year-month]
@@ -188,6 +185,6 @@
   (to-date-time [string]
     (from-string string))
 
-  java.sql.Timestamp
+  Timestamp
   (to-date-time [timestamp]
     (from-date timestamp)))

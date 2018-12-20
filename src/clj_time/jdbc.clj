@@ -11,22 +11,26 @@
   org.joda.time.DateTime objects, and vice versa where java.sql.Timestamp
   objects would be required by JDBC."
   (:require [clj-time.coerce :as tc]
-            [clojure.java.jdbc :as jdbc]))
+            [clojure.java.jdbc :as jdbc])
+  (:import (java.sql Timestamp Date Time)
+           (java.time ZonedDateTime LocalTime)))
 
 ; http://clojure.github.io/java.jdbc/#clojure.java.jdbc/IResultSetReadColumn
 (extend-protocol jdbc/IResultSetReadColumn
-  java.sql.Timestamp
+  Timestamp
   (result-set-read-column [v _2 _3]
     (tc/from-sql-time v))
-  java.sql.Date
+  Date
   (result-set-read-column [v _2 _3]
     (tc/from-sql-date v))
-  java.sql.Time
+  Time
   (result-set-read-column [v _2 _3]
-    (org.joda.time.DateTime. v)))
+    ;TODO - MSB - This is almoset certainly wrong
+    (LocalTime v)))
 
 ; http://clojure.github.io/java.jdbc/#clojure.java.jdbc/ISQLValue
 (extend-protocol jdbc/ISQLValue
-  org.joda.time.DateTime
+  ;TODO - MSB - This is almoset certainly wrong
+  ZonedDateTime
   (sql-value [v]
     (tc/to-sql-time v)))

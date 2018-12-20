@@ -10,7 +10,7 @@
             :url "http://www.opensource.org/licenses/mit-license.php"
             :distribution :repo}
   :dependencies [[joda-time "2.10"]
-                 [org.clojure/clojure "1.9.0" :scope "provided"]]
+                 [org.clojure/clojure "1.10.0" :scope "provided"]]
   :min-lein-version "2.0.0"
   :global-vars {*warn-on-reflection* true}
   :profiles {:dev {:dependencies [[org.clojure/java.jdbc "0.7.8"]]

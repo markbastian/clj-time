@@ -5,21 +5,15 @@
             [clj-time.types :refer [date-time? local-date-time? local-date? time-zone?]]
             [clj-time.core :refer [date-time]]
             [clj-time.coerce :refer [to-date-time to-long]])
-  (:import [org.joda.time DateTime DateTimeZone LocalDate LocalDateTime]
-           [org.joda.time.base BaseDateTime]
-           [java.util TimeZone]))
+  (:import (java.time ZoneId Instant ZonedDateTime)))
 
 (def all-time-zones
-  (delay
-    (set
-      (keep #(try (DateTimeZone/forTimeZone (TimeZone/getTimeZone ^String %))
-                  (catch Throwable t nil))
-            (TimeZone/getAvailableIDs)))))
+  (delay (set (map #(ZoneId/of %) (ZoneId/getAvailableZoneIds)))))
 
 (defn ^:dynamic *time-zones*
   "Dynamically bind this to choose which time zones to use in generators."
   []
-  (gen/one-of [(gen/return DateTimeZone/UTC)
+  (gen/one-of [(gen/return (ZoneId/of "UTC"))
                (spec/gen @all-time-zones)]))
 
 (spec/def ::past (spec/int-in (to-long (date-time 2001 1 1 00 00 00))
@@ -37,19 +31,27 @@
   (spec/gen ::past-and-future))
 
 (spec/def ::time-zone
-          (spec/with-gen time-zone? *time-zones*))
+  (spec/with-gen time-zone? *time-zones*))
 
 (spec/def ::date-time
-          (spec/with-gen date-time?
-                         #(gen/fmap (fn [ms] (DateTime. ms DateTimeZone/UTC))
-                                    (*period*))))
+  (spec/with-gen date-time?
+                 #(gen/fmap (fn [ms] (ZonedDateTime/ofInstant
+                                       (Instant/ofEpochMilli ms)
+                                       (ZoneId/of "UTC")))
+                            (*period*))))
 
 (spec/def ::local-date
-          (spec/with-gen local-date?
-                         #(gen/fmap (fn [ms] (LocalDate. ms))
-                                    (*period*))))
+  (spec/with-gen local-date?
+                 #(gen/fmap (fn [ms] (.toLocalDate
+                                       (ZonedDateTime/of
+                                         (Instant/ofEpochMilli ms)
+                                         (ZoneId/of "UTC"))))
+                            (*period*))))
 
 (spec/def ::local-date-time
-          (spec/with-gen local-date-time?
-                         #(gen/fmap (fn [ms] (LocalDateTime. ms))
-                                    (*period*))))
+  (spec/with-gen local-date-time?
+                 #(gen/fmap (fn [ms] (.toLocalDateTime
+                                       (ZonedDateTime/of
+                                         (Instant/ofEpochMilli ms)
+                                         (ZoneId/of "UTC"))))
+                            (*period*))))

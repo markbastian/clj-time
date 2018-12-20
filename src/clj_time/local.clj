@@ -27,19 +27,21 @@
   (:require [clj-time.core :as time]
             [clj-time.coerce :as coerce]
             [clj-time.format :as fmt])
-  (:import [org.joda.time DateTime DateTimeZone]
-           [org.joda.time.format DateTimeFormatter]))
+  (:import (java.time.format DateTimeFormatter)
+           (java.time ZoneId ZonedDateTime)
+           (java.sql Timestamp)))
 
 (def ^{:doc "Map of local formatters for parsing and printing." :dynamic true}
   *local-formatters*
   (into {} (map
-            (fn [[k ^DateTimeFormatter f]] [k (.withZone f ^DateTimeZone (time/default-time-zone))])
+            (fn [[k ^DateTimeFormatter f]]
+              [k (.withZone f ^ZoneId (time/default-time-zone))])
             fmt/formatters)))
 
 (defn local-now
   "Returns a DateTime for the current instant in the default time zone."
   []
-  (DateTime/now ^DateTimeZone (time/default-time-zone)))
+  (ZonedDateTime/now (time/default-time-zone)))
 
 (defprotocol ILocalCoerce
   (to-local-date-time [obj] "convert `obj` to a local Joda DateTime instance retaining time fields."))
@@ -77,7 +79,7 @@
   (to-local-date-time [sql-date]
     (as-local-date-time-to-time-zone sql-date))
 
-  DateTime
+  ZonedDateTime
   (to-local-date-time [date-time]
     (as-local-date-time-from-time-zone date-time))
 
@@ -93,7 +95,7 @@
   (to-local-date-time [string]
     (from-local-string string))
 
-  java.sql.Timestamp
+  Timestamp
   (to-local-date-time [timestamp]
     (as-local-date-time-to-time-zone timestamp)))
 
